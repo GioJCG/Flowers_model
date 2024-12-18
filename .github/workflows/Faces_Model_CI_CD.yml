@@ -32,7 +32,7 @@ jobs:
 
     - name: Download dataset from Google Drive
       run: |
-        gdown --id 1p-PuVCJJDDl_CCyRIN0WVw-DVSeyRiWB
+        gdown --id 1E4kF9w-sQkP5pG8qVjl-fyTvpvsErLXX
         tar -xzvf caras_fotos.tgz
 
     - name: Execute model training
