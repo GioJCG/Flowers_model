@@ -8,7 +8,10 @@ import cv2
 import os
 
 TAMANO_IMG = 128
-mi_clases = ['Enigma', 'Nayelli']
+base_dir = 'Flowers299'  
+
+mi_clases = sorted([d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))])
+print(f"Clases detectadas: {mi_clases}")
 
 def load_and_preprocess_image(file_path, label):
     file_path = tf.cast(file_path, tf.string)
@@ -19,8 +22,7 @@ def load_and_preprocess_image(file_path, label):
     return img, label
 
 image_paths = []
-labels = []
-base_dir = 'caras_fotos'  
+labels = [] 
 
 for i, mi_clase in enumerate(mi_clases):
     class_dir = os.path.join(base_dir, mi_clase)
