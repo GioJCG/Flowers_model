@@ -7,6 +7,8 @@ import numpy as np
 import cv2
 import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1'
+
 TAMANO_IMG = 128
 base_dir = 'Flowers299'  
 
