@@ -1,13 +1,12 @@
 #Prueba 1
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import cv2
-import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 TAMANO_IMG = 128
 base_dir = 'Flowers299'  
