@@ -26,9 +26,8 @@ jobs:
         
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        echo "Installing CPU-only TensorFlow..."
-        pip install tensorflow-cpu  # Instala TensorFlow para CPU
+        pip uninstall tensorflow -y  # Elimina cualquier instalación previa
+        pip install tensorflow-cpu==2.10.0  # Especifica versión compatible
         pip install -r requirements.txt
         
     - name: Download dataset from Google Drive
@@ -39,8 +38,7 @@ jobs:
         
     - name: Execute model training with CPU-only
       run: |
-        echo "Forzando uso de CPU..."
-        python -c "import os; os.environ['CUDA_VISIBLE_DEVICES'] = '-1'; import tensorflow as tf; print('TF usando GPU:', tf.test.is_gpu_available())"
+        python -c "import tensorflow as tf; print('TF está usando GPU:', tf.config.list_physical_devices('GPU'))"
         python faces_model.py
         
     - name: Show directory structure
