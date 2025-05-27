@@ -1,63 +1,57 @@
-#Prueba 1
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # Opcional: para silenciar warnings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # Silencia warnings de TensorFlow
 
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import numpy as np
-import cv2
 
 TAMANO_IMG = 128
-base_dir = 'Flowers299'  
+base_dir = 'Flowers299'
 
+# Detectar clases
 mi_clases = sorted([d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))])
 print(f"Clases detectadas: {mi_clases}")
 
-def load_and_preprocess_image(file_path, label):
-    file_path = tf.cast(file_path, tf.string)
-    img = tf.io.read_file(file_path)
-    img = tf.image.decode_jpeg(img, channels=3)  
-    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])
-    img = img / 255.0 
-    return img, label
+# Mapeo de clases a índices
+class_to_index = {mi_clase: i for i, mi_clase in enumerate(mi_clases)}
 
+# Recolectar paths e índices
 image_paths = []
-labels = [] 
+labels = []
 
-for i, mi_clase in enumerate(mi_clases):
+for mi_clase in mi_clases:
     class_dir = os.path.join(base_dir, mi_clase)
     if not os.path.exists(class_dir):
         print(f"No se encontró la carpeta: {class_dir}")
-    else:
-        for img_path in os.listdir(class_dir):
-            full_path = os.path.join(class_dir, img_path)
-            image_paths.append(full_path)
-            labels.append(i)
+        continue
+    for img_file in os.listdir(class_dir):
+        full_path = os.path.join(class_dir, img_file)
+        image_paths.append(full_path)
+        labels.append(class_to_index[mi_clase])
 
-dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
-dataset = dataset.map(load_and_preprocess_image)
+# Convertir a tensor
+image_paths_tensor = tf.convert_to_tensor(image_paths)
+labels_tensor = tf.convert_to_tensor(labels)
 
-dataset_list = list(dataset)
-X = np.array([img.numpy() for img, _ in dataset_list])
-y = np.array([label.numpy() for _, label in dataset_list])
+# Crear dataset
+def load_and_preprocess_image(file_path, label):
+    img = tf.io.read_file(file_path)
+    img = tf.image.decode_jpeg(img, channels=3)
+    img = tf.image.resize(img, [TAMANO_IMG, TAMANO_IMG])
+    img = img / 255.0
+    label = tf.one_hot(label, depth=len(mi_clases))
+    return img, label
 
-y = tf.keras.utils.to_categorical(y, num_classes=len(mi_clases))
+dataset = tf.data.Dataset.from_tensor_slices((image_paths_tensor, labels_tensor))
+dataset = dataset.map(load_and_preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
+dataset = dataset.shuffle(buffer_size=len(image_paths))
 
-print(X.shape, y.shape)
+# Dividir en train/test
+split_index = int(0.8 * len(image_paths))
+train_dataset = dataset.take(split_index).batch(32).prefetch(tf.data.AUTOTUNE)
+val_dataset = dataset.skip(split_index).batch(32).prefetch(tf.data.AUTOTUNE)
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-datagen = ImageDataGenerator(
-    rotation_range=30,
-    width_shift_range=0.25,
-    height_shift_range=0.25,
-    zoom_range=[0.5, 1.5]
-)
-datagen.fit(X_train)
-
+# Crear modelo
 modelo = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(TAMANO_IMG, TAMANO_IMG, 3)),
     tf.keras.layers.MaxPooling2D(2, 2),
@@ -73,46 +67,37 @@ modelo.compile(optimizer='adam',
                loss='categorical_crossentropy',
                metrics=['accuracy'])
 
-data_gen_entrenamiento = datagen.flow(X_train, Y_train, batch_size=32)
-
+# Entrenar modelo
 print("Entrenando modelo...")
 epocas = 60
 history = modelo.fit(
-    data_gen_entrenamiento,
+    train_dataset,
     epochs=epocas,
-    validation_data=(X_test, Y_test),
-    steps_per_epoch=int(np.ceil(X_train.shape[0] / float(32))),
-    validation_steps=int(np.ceil(X_test.shape[0] / float(32)))
+    validation_data=val_dataset
 )
 
-test_loss, test_accuracy = modelo.evaluate(X_test, Y_test)
+# Evaluar
+test_loss, test_accuracy = modelo.evaluate(val_dataset)
 print(f"Test accuracy: {test_accuracy * 100:.2f}%")
 
-export_dir = 'faces-model/1/'  
-os.makedirs(export_dir, exist_ok=True)  
-
+# Guardar modelo
+export_dir = 'faces-model/1/'
+os.makedirs(export_dir, exist_ok=True)
 tf.saved_model.save(modelo, export_dir)
 
-for root, dirs, files in os.walk('faces.model'):
-    print(root)
-    for file in files:
-        print(f"  - {file}")
+# Guardar nombres de clases
+with open(os.path.join(export_dir, 'class_names.txt'), 'w') as f:
+    for cls in mi_clases:
+        f.write(f"{cls}\n")
 
+# Ver estructura exportada
 print("Verificando estructura del modelo:")
 for root, dirs, files in os.walk(export_dir):
     print(root)
     for file in files:
         print(f"  - {file}")
 
-print("Contenido del directorio exportado:")
-for root, dirs, files in os.walk(export_dir):
-    for file in files:
-        print(os.path.join(root, file))
-
-with open(os.path.join(export_dir, 'class_names.txt'), 'w') as f:
-    for cls in mi_clases:
-        f.write(f"{cls}\n")
-
+# Graficar
 plt.plot(history.history['accuracy'], label='Training Accuracy')
 plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
 plt.title('Model Accuracy')
